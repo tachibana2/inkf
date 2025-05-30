@@ -1,0 +1,210 @@
+NAME
+    inkf - インターネット用文字コード変換フィルタ
+
+SYNOPSIS
+    inkf [-jescblwWJESCBmMOLNntf] [*file ...*]
+
+DESCRIPTION
+    inkfは、nkf互換の文字コード変換フィルタです。
+    nkfやlibiconv等の特定の文字コード変換ライブラリには依存していません。
+
+    inkfの特徴としては、日本語以外の多種の文字コードに対応している点があります。
+    また、入力文字コード系の自動認識機能があるため、利用者は入力文字コード系が何であるかを知らなくても、出力文字コード系のみ指定すれば大抵はうまく動作します。
+
+    現在、inkfが認識できる入力の文字コード系は、ISO-2022-JP、Shift_JIS、EUC-JP(CP51932 or EUCJP-MS)、UTF-7、UTF-8、UTF-16、UTF-32、GB2312、BIG5、EUC-KR、ISO-8859-*、KOI8、CP1251、CP1252のいずれかです。 出力する文字コード系も同じです。
+    上位の文字集合がある場合には、指定に逆らいそれを使用します。例えば、GB2312を指定しても、GB18030 2004が使用されます。UTF-16サロゲートペア、3バイトEUC-JPにも対応しています。
+    入力は、ファイルを指定しなければ、標準入力となります。 出力は標準出力です。
+    httpおよびhttps、ftpを指定することもできます。
+
+OPTIONS
+    指定できるオプションは以下の通り。 -Sj のように続けることができます。
+
+    -j  JIS コードを出力します。
+
+    -e  EUC-JP(CP51932) コードを出力します。
+
+    -s  Shift_JIS コードを出力します。
+
+    -l  Latin1 コードを出力します。
+
+    -c  GB2312 コードを出力します。
+
+    -b  BIG5 コードを出力します。
+
+    -w -w8[0] -w16[BL][0] -w32[BL][0]
+        Unicode を出力します。
+
+        -w -w80
+            UTF-8 コードを出力します。 (BOM 無し)
+
+        -w8 UTF-8 コードを出力します。
+
+        -w16 -w16B0
+            UTF-16 コードを出力します。 (Big Endian / BOM 無し)
+
+        -w16B
+            UTF-16 コードを出力します。 (Big Endian / BOM 有り)
+
+        -w16L
+            UTF16 コードを出力します。 (Little Endian / BOM 有り)
+
+        -w16L0
+            UTF-16 コードを出力します。 (Little Endian / BOM 無し)
+
+        -w32 -w32B0
+            UTF-32 コードを出力します。 (Big Endian / BOM 無し)
+
+        -w32B
+            UTF-32 コードを出力します。 (Big Endian / BOM 有り)
+
+        -w32L
+            UTF-32 コードを出力します。 (Little Endian / BOM 有り)
+
+        -w32L0
+            UTF-32 コードを出力します。 (Little Endian / BOM 無し)
+
+    -m[BQN0]
+        MIME を解読します。
+
+        -mB MIME base64 stream を解読します。
+
+        -mQ MIME quoted stream を解読します。
+
+        -mN MIME のチェックを緩くします。
+
+        -m0 MIME を解読しません。
+
+    -M[BQbq]
+        MIME 変換します。
+
+        -M  BASE64 のヘッダ形式に変換します。
+
+        -MB base64 stream に変換します。
+
+        -MQ Quoted stream に変換します。
+
+        -Mb BASE64 のヘッダ形式に変換します。
+
+        -Mq Quoted Printable のヘッダ形式に変換します。
+
+    -J -E -S -W
+        期待される入力コードの性質を指定します。
+
+        -J  ISO-2022-JP を仮定します。
+
+        -E  日本語 EUC-JP(CP51932) を仮定します。
+
+        -S  Shift_JIS を仮定します。
+
+        -C  GB2312 コードを仮定します。
+
+        -B  BIG5 コードを仮定します。
+
+        -W  UTF-8 を仮定します。
+
+        -W8 UTF-8 を仮定します。
+
+        -W16
+            UTF-16 (Little Endian)を仮定します。
+
+        -W16B
+            UTF-16 (Big Endian)を仮定します。
+
+        -W16L
+            UTF-16 (Little Endian)を仮定します。
+
+        -W32
+            UTF-32 (Little Endian)を仮定します。
+
+        -W32B
+            UTF-32 (Big Endian)を仮定します。
+
+        -W32L
+            UTF-32 (Little Endian)を仮定します。
+
+    -l  0x80-0xfe のコードを Latin-1 として扱います。
+
+    -O  ファイルに出力します。
+
+    -L[uwm]
+        改行コードを変換します。
+
+        -Lu
+            unix (LF)
+
+        -Lw
+            windows (CRLF)
+
+        -Lm
+            old mac (CR)
+
+        デフォルトでは変換ません。
+
+    -N  MIMEエンコード/デコード時に改行コードを除去しません。
+
+    -n  不用な改行コードを出力しません。
+
+    --ic=<input_codeset> --oc=<output_codeset>>
+        入力・出力の漢字コード系を指定します。
+
+    -f <input_codeset> -t <output_codeset>>
+        入力・出力の漢字コード系を指定します(iconv互換用)。
+
+    --hiragana --katakana
+        平仮名、片仮名変換をします。
+
+    --zenkaku-ascii
+        全角アルファベットに置換します。
+
+    --hankaku-ascii
+        半角アルファベットに置換します。
+
+    --zenkaku-katakana
+        カタカナを半角から全角に置換します。
+
+    --hankaku-katakana
+        カタカナを全角から半角に置換します。
+
+    --html-to-plain
+        HTMLをプレーンテキストに変換します。
+
+    -g --guess
+        自動判別の結果を出力します。
+
+    --midi
+        標準MIDIファイルを出力します。
+
+    --md5
+        MD5 sumを出力します。
+
+    --sha1
+        SHA-1 sumを出力します。
+
+    --sort-csv=<CSVカラム名>
+        1行目がヘッダのCSVファイルを昇順でソートします。
+
+    --sort-csv-r=<CSVカラム名>
+        1行目がヘッダのCSVファイルを降順でソートします。
+
+    --format-json
+        JSONを整形します。
+
+    --minify-json
+        JSONをミニマイズします。
+
+    --re-match=<パターン>
+        正規表現マッチを行います。
+
+    --overwrite
+        ファイルを上書きします。
+
+    --help
+        コマンドの簡単な説明を表示します。
+
+    -v --version
+        inkf のバージョンを表示します。
+
+AUTHOR
+    たちばなまさし (Masashi Astro Tachibana)
+
+    Copyright (C) 2002-2019 Masashi Astro Tachibana

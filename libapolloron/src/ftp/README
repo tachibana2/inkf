@@ -1,0 +1,46 @@
+liboftp: this is an FTP library to simplify the work to a Developer
+who want to work with FTP servers (RFC 959).
+
+version 2.2
+
+
+■これは？
+
+C言語で書かれたプログラムでftp接続をサポートするライブラリです。
+
+
+■使い方
+
+#include "liboftp.h"
+
+  LIBOFTP ftp;
+  ftp_initialize( &ftp );
+  ftp_open( &ftp, "HOSTNAME", 0 );
+  ftp_user( &ftp, "USERNAME", "PASSWORD" );
+  ftp_get_file( &ftp, "test.txt", "test.txt" );
+  ftp_quit( &ftp );
+
+基本的にコマンドライン版 ftp を使うときのコマンドと同じセマンティクスで
+関数をコールすることで、使えるように設計してあります。
+example ディレクトリの中に、もう少し複雑なサンプルがあります。
+html ディレクトリの中に、各関数のマニュアルがあります。
+
+
+■歴史
+
+バージョン１は、Omni さんによって、開発されました。
+ライセンスは、GPLv3で、sourceforge.net により公開されましたが、
+2008-9-30に本人によるアナウンスでプロジェクトは停止しました。
+
+2009-2-18 に、hirohito が、プロジェクトを引き継ぎ、2009-2-23に
+linux実装に依存しすぎる部分などを改良した、version 1.1をリリース
+しました。
+しかしながら、発見したいくつかの問題点や、私が実現したい機能を
+実装するには、今の設計では不可能なこともわかってきました。
+
+そこで、バージョン２の開発に移行する形をとり、バージョン１からは
+名前と以下の設計ポリシーのみを継承し、ゼロから設計しました。
+
+・ftp(CUI)のコマンドを、できるだけ真似た関数名をつける。
+・1関数1ファイルを基本とする。
+・できるだけシンプルに。

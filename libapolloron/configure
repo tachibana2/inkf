@@ -1,0 +1,261 @@
+#!/bin/sh
+
+CONFIG_FILE="config"
+
+if [ $# -eq 0 ]; then
+  if [ -f ${CONFIG_FILE} ]; then
+    exit 0
+  fi
+else
+  if [ "$1" = "--help" ]; then
+    echo "A configuration script for libapolloron."
+    echo "usage: $0 [option]"
+    echo "  (option)"
+    echo "  --without-iconv     : not using libiconv (recommended)"
+    echo "  --with-iconv        : using libiconv (/usr/lib/libiconv.*)"
+    echo "  --without-openssl   : not using openssl"
+    echo "  --with-openssl      : using openssl (/usr/lib/ssl.*)"
+    echo "  --enable-regex      : enable regex functions"
+    echo "  --disable-regex     : disable regex functions"
+    echo "  --enable-md5        : enlable MD5 functions"
+    echo "  --disable-md5       : disable MD5 functions"
+    exit 0
+  fi
+fi
+
+if [ -f ${CONFIG_FILE} ]; then
+  rm -f ${CONFIG_FILE}
+fi
+
+SH="sh"
+MAKE="make"
+if [ "${CC}" = "" ]; then
+  CC=`which clang 2>/dev/null` || CC="gcc"
+  LD="${CC}"
+else
+  CC="${CC}"
+  LD="${CC}"
+fi
+if [ "${CXX}" = "" ]; then
+  CXX=`which clang++ 2>/dev/null` || CXX="g++"
+  CXXLD="${CXX}"
+else
+  CXX="${CXX}"
+  CXXLD="${CXX}"
+fi
+AR="ar"
+RANLIB="ranlib"
+STRIP="strip"
+RM="rm -f"
+#CFLAGS="-g -O -Wall -U_FORTIFY_SOURCE"
+CFLAGS="-O -Wall -U_FORTIFY_SOURCE -I/usr/local/include -I/opt/homebrew/include"
+LDFLAGS="-L/usr/local/lib -L/opt/homebrew/lib"
+ARFLAGS="rc"
+INCLUDES=""
+CONFIG_OPTIONS=""
+
+WITH_LIBICONV=0
+WITH_OPENSSL=0
+ENABLE_REGEX=1
+ENABLE_MD5=1
+ENABLE_SHA1=1
+
+if [ -f /usr/include/openssl/ssl.h ]; then
+  WITH_OPENSSL=1
+elif [ -f /usr/local/include/openssl/ssl.h ]; then
+  WITH_OPENSSL=1
+fi
+if [ $WITH_OPENSSL -eq 1 ]; then
+  echo "#include <stdio.h>" > conftest.cc
+  echo "#include <openssl/ssl.h>" >> conftest.cc
+  echo "int main() {SSL_library_init(); return 0;}" >> conftest.cc
+  if [ -f /usr/local/lib/libssl.dylib ]; then
+    ${CXX} -o conftest ${CFLAGS} conftest.cc /usr/local/lib/libssl.dylib 2>/dev/null
+  else
+    if [ -f /usr/local/lib/libssl.so ]; then
+      ${CXX} -o conftest ${CFLAGS} conftest.cc /usr/local/lib/libssl.so 2>/dev/null
+    else
+      ${CXX} -o conftest ${CFLAGS} conftest.cc -lssl 2>/dev/null
+    fi
+  fi
+  if [ -f conftest ]; then
+    ${RM} conftest conftest.exe
+  else
+    WITH_OPENSSL=0
+  fi
+  ${RM} conftest.cc
+  ${RM} conftest.exe
+fi
+
+for arg in $@; do
+  case ${arg} in
+    --without-iconv)
+      WITH_LIBICONV=0
+      ;;
+    --with-iconv)
+      WITH_LIBICONV=1
+      ;;
+    --without-openssl)
+      WITH_OPENSSL=0
+      ;;
+    --with-openssl)
+      WITH_OPENSSL=1
+      ;;
+    --enable-regex)
+      ENABLE_REGEX=1
+      ;;
+    --disable-regex)
+      ENABLE_REGEX=0
+      ;;
+    --enable-md5)
+      ENABLE_MD5=1
+      ;;
+    --disable-md5)
+      ENABLE_MD5=0
+      ;;
+    --enable-sha1)
+      ENABLE_SHA1=1
+      ;;
+    --disable-sha1)
+      ENABLE_SHA1=0
+      ;;
+    *)
+      #echo "Unknown option: ${arg}"
+      #exit -1
+      ;;
+    esac
+done
+
+if [ $WITH_LIBICONV -eq 1 ]; then
+  CFLAGS="${CFLAGS} -D__ICONV=1"
+  LDFLAGS="${LDFLAGS} -liconv"
+  CONFIG_OPTIONS="--with-iconv"
+else
+  CFLAGS="${CFLAGS} -D__ICONV=0"
+  CONFIG_OPTIONS="--without-iconv"
+fi
+
+if [ $WITH_OPENSSL -eq 1 ]; then
+  CFLAGS="${CFLAGS} -D__OPENSSL=1"
+  if [ -f /usr/local/lib/libssl.dylib ]; then
+    LDFLAGS="${LDFLAGS} /usr/local/lib/libssl.dylib /usr/local/lib/libcrypto.dylib"
+  else
+    if [ -f /usr/local/lib/libssl.so ]; then
+      LDFLAGS="${LDFLAGS} /usr/local/lib/libssl.so /usr/local/lib/libcrypto.so"
+    else
+      LDFLAGS="${LDFLAGS} -lssl -lcrypto"
+    fi
+  fi
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --with-openssl"
+else
+  CFLAGS="${CFLAGS} -D__OPENSSL=0"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --without-openssl"
+fi
+
+if [ $ENABLE_REGEX -eq 1 ]; then
+  CFLAGS="${CFLAGS} -D__REGEX=1"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --enable-regex"
+else
+  CFLAGS="${CFLAGS} -D__REGEX=0"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --disable-regex"
+fi
+
+if [ $ENABLE_MD5 -eq 1 ]; then
+  CFLAGS="${CFLAGS} -D__MD5=1"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --enable-md5"
+else
+  CFLAGS="${CFLAGS} -D__MD5=0"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --disable-md5"
+fi
+
+if [ $ENABLE_SHA1 -eq 1 ]; then
+  CFLAGS="${CFLAGS} -D__SHA1=1"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --enable-sha1"
+else
+  CFLAGS="${CFLAGS} -D__SHA1=0"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --disable-sha1"
+fi
+
+sysname=`uname -s`
+if [ "${OS}" = "Windows_NT" ]; then
+  sysname="Cygwin"
+fi
+case ${sysname} in
+  Linux)
+            CFLAGS="${CFLAGS} -D_LINUX=1 -fPIC -fPIE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+            LDFLAGS="${LDFLAGS} -lm -lpthread"
+            ;;
+  SunOS)
+            CFLAGS="${CFLAGS} -D_SUN=1 -D_REENTRANT"
+            LDFLAGS="${LDFLAGS} -lm -lsocket -lnsl -lresolv -lpthread"
+            ;;
+  FreeBSD)
+            MAKE="gmake"
+            CFLAGS="${CFLAGS} -D_FBS=1 -fPIC -pthread"
+            LDFLAGS="${LDFLAGS} -pthread"
+            ;;
+  NetBSD)
+            MAKE="gmake"
+            CFLAGS="${CFLAGS} -D_NBS=1 -fthread-jumps -pthread"
+            LDFLAGS="${LDFLAGS} -socket -lc_r -pthread"
+            ;;
+  *BSD)
+            MAKE=`which gmake 2>/dev/null` || MAKE="make"
+            CFLAGS="${CFLAGS} -D_OBS=1 -fPIC -pthread"
+            LDFLAGS="${LDFLAGS} -pthread"
+            ;;
+  DragonFly)
+            MAKE=`which gmake 2>/dev/null` || MAKE="make"
+            CFLAGS="${CFLAGS} -D_FBS=1 -fPIC -fthread-jumps -pthread"
+            LDFLAGS="${LDFLAGS} -pthread"
+            ;;
+  AIX)
+            CFLAGS="${CFLAGS} -D_AIX=1"
+            LDFLAGS="${LDFLAGS} -lnsl -lpthread"
+            ;;
+  HP-UX)
+            CFLAGS="${CFLAGS} -D_HPUX=1 -D_XOPEN_SOURCE_EXTENDED"
+            LDFLAGS="${LDFLAGS} -lm -lnsl -lpthread"
+            ;;
+  OSF1)
+            CFLAGS="${CFLAGS} -D_OSF1=1"
+            LDFLAGS="${LDFLAGS} -lm -lpthread"
+            ;;
+  Darwin)
+            CFLAGS="${CFLAGS} -D_DARWIN=1"
+            LDFLAGS="${LDFLAGS}"
+            #CXX="${CXX} -arch i386 -arch ppc -arch ppc64"
+            #SDK="/Developer/SDKs/MacOSX10.4u.sdk"
+            #CFLAGS="${CFLAGS} -D_DARWIN=1 -isysroot ${SDK}"
+            #LDFLAGS="${LDFLAGS} -fthread-jumps -isysroot ${SDK} -Wl,-syslibroot,${SDK}"
+            ;;
+  Cygwin)
+            CFLAGS="${CFLAGS} -D_CYGWIN=1"
+            LDFLAGS="${LDFLAGS} -lm -lpthread"
+            ;;
+  *)
+            CFLAGS="${CFLAGS}"
+            LDFLAGS="${LDFLAGS} -lm -lsocket -lpthread"
+            ;;
+esac
+
+touch ${CONFIG_FILE}
+echo "#config (${CONFIG_OPTIONS})"     >> ${CONFIG_FILE}
+echo "SH            = ${SH}"           >> ${CONFIG_FILE}
+echo "MAKE          = ${MAKE}"         >> ${CONFIG_FILE}
+echo "CC            = ${CC}"           >> ${CONFIG_FILE}
+echo "CXX           = ${CXX}"          >> ${CONFIG_FILE}
+echo "LD            = ${LD}"           >> ${CONFIG_FILE}
+echo "CXXLD         = ${CXXLD}"        >> ${CONFIG_FILE}
+echo "AR            = ${AR}"           >> ${CONFIG_FILE}
+echo "RANLIB        = ${RANLIB}"       >> ${CONFIG_FILE}
+echo "STRIP         = ${STRIP}"        >> ${CONFIG_FILE}
+echo "RM            = ${RM}"           >> ${CONFIG_FILE}
+echo "CFLAGS        = ${CFLAGS}"       >> ${CONFIG_FILE}
+echo "CXXFLAGS      = ${CFLAGS}"       >> ${CONFIG_FILE}
+echo "LDFLAGS       = ${LDFLAGS}"      >> ${CONFIG_FILE}
+echo "ARFLAGS       = ${ARFLAGS}"      >> ${CONFIG_FILE}
+echo "INCLUDES      = ${INCLUDES}"     >> ${CONFIG_FILE}
+echo "ENABLE_REGEX  = ${ENABLE_REGEX}" >> ${CONFIG_FILE}
+echo "ENABLE_MD5    = ${ENABLE_MD5}"   >> ${CONFIG_FILE}
+echo "ENABLE_SHA1   = ${ENABLE_SHA1}"  >> ${CONFIG_FILE}

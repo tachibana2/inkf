@@ -1,0 +1,82 @@
+# inkf - yet another nkf with international language support
+# Masashi Astro Tachibana
+
+CONFIG_FILE = config
+include $(CONFIG_FILE)
+
+CXXFLAGS          += -I. -I./libapolloron/include
+LDFLAGS           +=
+LIBS              = libinkf.a
+OBJS              = inkf_common.o
+TARGET            = inkf
+PREFIX            = /usr/local
+
+ifeq ($(OS),Windows_NT)
+  CXXFLAGS        +=
+  #LDFLAGS        += -mno-cygwin
+  TARGET          = inkf.exe
+endif
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+
+.cc.o:
+	$(CXX) $(CXXFLAGS) -c $<
+
+all: $(TARGET) example
+
+$(TARGET): inkf_command.o $(LIBS)
+	$(CXXLD) -o $@ inkf_command.o $(LIBS) $(LDFLAGS)
+	$(STRIP) $@
+
+libinkf.a: libinkf.o $(OBJS) libapolloron/lib/libapolloron.a
+	$(AR) rv libtmp.a libinkf.o $(OBJS)
+	$(RANLIB) libtmp.a
+	$(RM) $@
+	libtool -static -o $@ libtmp.a libapolloron/lib/libapolloron.a 2>/dev/null || ($(AR) cq $@ $^ && bash -c 'echo -n -e "create libinkf.a\naddlib libapolloron/lib/libapolloron.a\naddlib libtmp.a\nsave\nend" | $(AR) -M')
+	$(RANLIB) $@
+	$(RM) libtmp.a
+
+example: example.c example.o $(LIBS)
+	$(LD) -o $@ example.o $(LIBS) $(LDFLAGS) 2>/dev/null || $(CXXLD) -o $@ example.o $(LIBS) $(LDFLAGS)
+	$(STRIP) $@
+
+inkf_command.o: inkf_command.c
+libinkf.o: libinkf.c inkf.h
+
+example.o: example.c
+inkf_common.o: inkf_common.cc inkf_common.h
+
+libapolloron/lib/libapolloron.a: libapolloron/include/apolloron.h
+	cd ./libapolloron && CXX=$(CXX) ./configure $(CONFIG_OPTIONS) && $(MAKE)
+
+
+install:
+	$(CP) inkf $(PREFIX)/bin/
+	$(CP) libinkf.a $(PREFIX)/lib/
+	$(CP) inkf.h $(PREFIX)/include/
+	mkdir -p $(PREFIX)/man
+	mkdir -p $(PREFIX)/man/man1
+	$(CP) inkf.1 $(PREFIX)/man/man1/
+
+uninstall:
+	$(RM) $(PREFIX)/bin/inkf
+	$(RM) $(PREFIX)/lib/libinkf.a
+	$(RM) $(PREFIX)/include/inkf.h
+	$(RM) $(PREFIX)/man/man1/inkf.1
+	@rmdir $(PREFIX)/man/man1 2>/dev/null || :
+	@rmdir $(PREFIX)/man 2>/dev/null || :
+
+clean:
+	cd ./libapolloron; $(MAKE) clean
+	$(RM) ./libapolloron/config
+	$(RM) $(TARGET) example $(LIBS) $(OBJS) libinkf.o inkf_command.o example.o
+	$(RM) core *.core *.stackdump .DS_Store ._*
+	$(RM) libtmp.a
+
+distclean:
+	cd ./libapolloron; $(MAKE) distclean
+	$(RM) $(TARGET) example $(LIBS) $(OBJS) libinkf.o inkf_command.o example.o
+	$(RM) core *.core *.stackdump .DS_Store ._*
+	$(RM) libtmp.a
+	$(RM) $(CONFIG_FILE)

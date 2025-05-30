@@ -1,0 +1,226 @@
+#!/bin/sh
+
+CONFIG_FILE="config"
+
+if [ $# -eq 0 ]; then
+  if [ -f ${CONFIG_FILE} ]; then
+    exit 0
+  fi
+else
+  if [ "$1" = "--help" ]; then
+    echo "A configuration script for inkf."
+    echo "usage: $0 [option]"
+    echo "  (option)"
+    echo "  --without-openssl   : not using openssl"
+    echo "  --with-openssl      : using openssl (/usr/lib/ssl.*)"
+    echo "  --static-link       : static link"
+    exit 0
+  fi
+fi
+
+if [ -f ${CONFIG_FILE} ]; then
+  rm -f ${CONFIG_FILE}
+fi
+
+SH="sh"
+MAKE="make"
+if [ "${CXX}" = "" ]; then
+  CXX=`which clang++ 2>/dev/null` || CXX="g++"
+  CXXLD="${CXX}"
+else
+  CXX="${CXX}"
+  CXXLD="${CXX}"
+fi
+if [ "${CC}" = "" ]; then
+  CC=`which clang 2>/dev/null` || CC="gcc"
+  LD="${CC}"
+else
+  CC="${CC}"
+  LD="${CC}"
+fi
+AR="ar"
+RANLIB="ranlib"
+STRIP="strip"
+RM="rm -f"
+CP="cp -f"
+CFLAGS="-O -Wall -U_FORTIFY_SOURCE -I/usr/local/include -I/opt/homebrew/include"
+LDFLAGS="-lstdc++"
+LDFLAGS="-L/usr/local/lib -L/opt/homebrew/lib"
+
+if [ -f "/usr/lib/libc++.so" ] || [ -f "/usr/lib64/libc++.so" ]; then
+  LDFLAGS="-lc++"
+elif [ -f "/usr/lib/libc++.a" ] || [ -f "/usr/lib64/libc++.a" ]; then
+  LDFLAGS="-lc++"
+elif [ -f "/usr/lib/libc++.dylib" ] || [ -f "/usr/lib64/libc++.dylib" ]; then
+  LDFLAGS="-lc++"
+fi
+ARFLAGS="rc"
+INCLUDES=""
+CONFIG_OPTIONS=""
+WITH_OPENSSL=0
+STATIC_LINK=0
+
+if [ -f /usr/include/openssl/ssl.h ]; then
+  WITH_OPENSSL=1
+elif [ -f /usr/local/include/openssl/ssl.h ]; then
+  WITH_OPENSSL=1
+elif [ -f /opt/homebrew/include/openssl/ssl.h ]; then
+  WITH_OPENSSL=1
+fi
+if [ $WITH_OPENSSL -eq 1 ]; then
+  echo "#include <stdio.h>" > conftest.cc
+  echo "#include <openssl/ssl.h>" >> conftest.cc
+  echo "int main() {SSL_library_init(); return 0;}" >> conftest.cc
+  if [ -f /usr/local/lib/libssl.dylib ]; then
+    ${CXX} -o conftest ${CFLAGS} conftest.cc /usr/local/lib/libssl.dylib 2>/dev/null
+  elif [ -f /opt/homebrew/lib/libssl.dylib ]; then
+    ${CXX} -o conftest ${CFLAGS} conftest.cc /opt/homebrew/lib/libssl.dylib 2>/dev/null
+  else
+    if [ -f /usr/local/lib/libssl.so ]; then
+      ${CXX} -o conftest ${CFLAGS} conftest.cc /usr/local/lib/libssl.so 2>/dev/null
+    else
+      ${CXX} -o conftest ${CFLAGS} conftest.cc -lssl 2>/dev/null
+    fi
+  fi
+  if [ -f conftest ]; then
+    ${RM} conftest conftest.exe
+  else
+    WITH_OPENSSL=0
+  fi
+  ${RM} conftest.cc
+fi
+
+for arg in $@; do
+  case ${arg} in
+    --without-openssl)
+      WITH_OPENSSL=0
+      ;;
+    --with-openssl)
+      WITH_OPENSSL=1
+      ;;
+    --static-link)
+      STATIC_LINK=1
+      ;;
+    *)
+      echo "Unknown option: ${arg}"
+      exit -1
+      ;;
+    esac
+done
+
+if [ $WITH_OPENSSL -eq 1 ]; then
+  echo "OpenSSL ... enabled"
+else
+  echo "OpenSSL ... disabled"
+fi
+if [ $STATIC_LINK -eq 1 ]; then
+  echo "Static link ... enabled"
+else
+  echo "Static link ... disabled"
+fi
+
+if [ $WITH_OPENSSL -eq 1 ]; then
+  CFLAGS="${CFLAGS} -D__OPENSSL=1"
+  if [ -f /usr/local/lib/libssl.dylib ]; then
+    LDFLAGS="${LDFLAGS} /usr/local/lib/libssl.dylib /usr/local/lib/libcrypto.dylib"
+  else
+    if [ -f /usr/local/lib/libssl.so ]; then
+      LDFLAGS="${LDFLAGS} /usr/local/lib/libssl.so /usr/local/lib/libcrypto.so"
+    else
+      LDFLAGS="${LDFLAGS} -lssl -lcrypto"
+    fi
+  fi
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --with-openssl"
+else
+  CFLAGS="${CFLAGS} -D__OPENSSL=0"
+  CONFIG_OPTIONS="${CONFIG_OPTIONS} --without-openssl"
+fi
+
+if [ $STATIC_LINK -eq 1 ]; then
+  LDFLAGS="${LDFLAGS} -static"
+fi
+
+#CONFIG_OPTIONS="${CONFIG_OPTIONS} --disable-regex"
+CONFIG_OPTIONS="${CONFIG_OPTIONS}"
+
+sysname=`uname -s`
+if [ "${OS}" = "Windows_NT" ]; then
+  sysname="Cygwin"
+fi
+case ${sysname} in
+  Linux)
+            CFLAGS="${CFLAGS} -D_LINUX=1 -fPIC -fPIE -D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64"
+            LDFLAGS="${LDFLAGS} -lm -lpthread"
+            ;;
+  SunOS)
+            CFLAGS="${CFLAGS} -D_SUN=1 -D_REENTRANT"
+            LDFLAGS="${LDFLAGS} -lm -lsocket -lnsl -lresolv -lpthread"
+            ;;
+  FreeBSD)
+            MAKE="gmake"
+            CFLAGS="${CFLAGS} -D_FBS=1 -pthread"
+            LDFLAGS="${LDFLAGS}"
+            ;;
+  NetBSD)
+            MAKE="gmake"
+            CFLAGS="${CFLAGS} -D_NBS=1 -fthread-jumps -pthread"
+            LDFLAGS="${LDFLAGS} -socket -lc_r"
+            ;;
+  *BSD)
+            MAKE=`which gmake` || MAKE="make"
+            CFLAGS="${CFLAGS} -D_OBS=1 -pthread"
+            LDFLAGS="${LDFLAGS}"
+            ;;
+  DragonFly)
+            MAKE=`which gmake` || MAKE="make"
+            CFLAGS="${CFLAGS} -D_FBS=1 -fthread-jumps -pthread"
+            LDFLAGS="${LDFLAGS}"
+            ;;
+  AIX)
+            CFLAGS="${CFLAGS} -D_AIX=1"
+            LDFLAGS="${LDFLAGS} -lnsl -lpthread"
+            ;;
+  HP-UX)
+            CFLAGS="${CFLAGS} -D_HPUX=1 -D_XOPEN_SOURCE_EXTENDED"
+            LDFLAGS="${LDFLAGS} -lm -lnsl -lpthread"
+            ;;
+  OSF1)
+            CFLAGS="${CFLAGS} -D_OSF1=1"
+            LDFLAGS="${LDFLAGS} -lm -lpthread"
+            ;;
+  Darwin)
+            CFLAGS="${CFLAGS} -D_DARWIN=1"
+            LDFLAGS="${LDFLAGS}"
+            #CXX="${CXX} -arch i386 -arch ppc -arch ppc64"
+            #SDK="/Developer/SDKs/MacOSX10.4u.sdk"
+            #CFLAGS="${CFLAGS} -D_DARWIN=1 -isysroot ${SDK}"
+            #LDFLAGS="${LDFLAGS} -isysroot ${SDK} -Wl,-syslibroot,${SDK}"
+            ;;
+  Cygwin)
+            CFLAGS="${CFLAGS} -D_CYGWIN=1"
+            LDFLAGS="${LDFLAGS} -lm -lpthread"
+            ;;
+  *)
+            CFLAGS="${CFLAGS}"
+            LDFLAGS="${LDFLAGS} -lm -lsocket -lpthread"
+            ;;
+esac
+
+touch ${CONFIG_FILE}
+echo "#config" >> ${CONFIG_FILE}
+echo "CONFIG_OPTIONS= ${CONFIG_OPTIONS}" >> ${CONFIG_FILE}
+echo "SH            = ${SH}"           >> ${CONFIG_FILE}
+echo "MAKE          = ${MAKE}"         >> ${CONFIG_FILE}
+echo "CXX           = ${CXX}"          >> ${CONFIG_FILE}
+echo "CXXLD         = ${CXXLD}"        >> ${CONFIG_FILE}
+echo "LD            = ${LD}"           >> ${CONFIG_FILE}
+echo "AR            = ${AR}"           >> ${CONFIG_FILE}
+echo "RANLIB        = ${RANLIB}"       >> ${CONFIG_FILE}
+echo "STRIP         = ${STRIP}"        >> ${CONFIG_FILE}
+echo "RM            = ${RM}"           >> ${CONFIG_FILE}
+echo "CP            = ${CP}"           >> ${CONFIG_FILE}
+echo "CFLAGS        = ${CFLAGS}"       >> ${CONFIG_FILE}
+echo "CXXFLAGS      = ${CFLAGS}"       >> ${CONFIG_FILE}
+echo "LDFLAGS       = ${LDFLAGS}"      >> ${CONFIG_FILE}
+echo "ARFLAGS       = ${ARFLAGS}"      >> ${CONFIG_FILE}
+echo "INCLUDES      = ${INCLUDES}"     >> ${CONFIG_FILE}
